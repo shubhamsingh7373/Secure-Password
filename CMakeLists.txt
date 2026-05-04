@@ -13,6 +13,7 @@ set(SOURCES
     src/auth.cpp
     src/crypto.cpp
     src/vault.cpp
+    src/gcs_client.cpp
     src/password_gen.cpp
     src/ui.cpp
     src/mongoose.c
@@ -29,5 +30,5 @@ target_compile_definitions(password_vault PRIVATE
 
 # Link libraries if needed
 if(WIN32)
-    target_link_libraries(password_vault ws2_32 crypt32 wsock32)
+    target_link_libraries(password_vault ws2_32 crypt32 wsock32 winhttp bcrypt)
 endif()

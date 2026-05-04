@@ -1,5 +1,6 @@
 #include "auth.h"
 #include "vault.h"
+#include "gcs_client.h"
 #include "password_gen.h"
 #include "mongoose.h"
 #include <nlohmann/json.hpp>
@@ -11,9 +12,10 @@ extern "C" const struct mg_mem_file mg_packed_files[] = {{NULL, NULL, 0, 0}};
 
 using json = nlohmann::json;
 
-// Global vault and auth objects
-Auth* g_auth = nullptr;
-Vault* g_vault = nullptr;
+// Global vault, auth, and GCS objects
+Auth*      g_auth   = nullptr;
+Vault*     g_vault  = nullptr;
+GCSClient* g_gcs    = nullptr;
 std::string g_masterKey;
 
 bool isAuthorized(struct mg_http_message *hm) {
@@ -204,6 +206,28 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
             for (const auto& e : results) { json ej; to_json(ej, e); j.push_back(ej); }
             send_json(c, 200, j);
         }
+        // GET /api/cloud/status
+        else if (mg_match(hm->uri, mg_str("/api/cloud/status"), NULL) && mg_match(hm->method, mg_str("GET"), NULL)) {
+            if (!isAuthorized(hm)) { send_error(c, 401, "Unauthorized"); return; }
+            bool enabled = g_vault->isCloudEnabled();
+            json j = {
+                {"enabled", enabled},
+                {"bucket", enabled ? g_gcs->config().bucketName : ""},
+                {"object", enabled ? g_gcs->config().objectName : ""}
+            };
+            send_json(c, 200, j);
+        }
+        // POST /api/cloud/sync (manual push)
+        else if (mg_match(hm->uri, mg_str("/api/cloud/sync"), NULL) && mg_match(hm->method, mg_str("POST"), NULL)) {
+            if (!isAuthorized(hm)) { send_error(c, 401, "Unauthorized"); return; }
+            if (!g_vault->isCloudEnabled()) {
+                send_error(c, 503, "GCS not configured");
+                return;
+            }
+            bool ok = g_vault->syncToCloud();
+            json j = {{"synced", ok}, {"message", ok ? "Vault synced to GCS" : "Sync failed"}};
+            send_json(c, ok ? 200 : 500, j);
+        }
         else {
             struct mg_http_serve_opts opts = {0};
             opts.root_dir = "./public";
@@ -213,13 +237,27 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
 }
 
 int main() {
-    const std::string configPath = "vault_config.txt";
-    const std::string vaultPath = "vault.dat";
+    const std::string configPath    = "vault_config.txt";
+    const std::string vaultPath     = "vault.dat";
+    const std::string gcsConfigPath = "gcs_config.json";
 
-    Auth auth(configPath);
+    Auth  auth(configPath);
     Vault vault(vaultPath);
-    g_auth = &auth;
+    g_auth  = &auth;
     g_vault = &vault;
+
+    // ── GCS Setup ──────────────────────────────────────────────────────────
+    GCSConfig gcsCfg = loadGCSConfig(gcsConfigPath);
+    GCSClient* gcsClient = nullptr;
+    if (gcsCfg.enabled) {
+        gcsClient = new GCSClient(gcsCfg);
+        vault.setGCSClient(gcsClient);
+        g_gcs = gcsClient;
+    } else {
+        std::cout << "[GCS] Cloud sync disabled. Using local vault.dat\n";
+        std::cout << "[GCS] To enable, fill in gcs_config.json\n";
+    }
+    // ───────────────────────────────────────────────────────────────────────
 
     struct mg_mgr mgr;
     mg_mgr_init(&mgr);

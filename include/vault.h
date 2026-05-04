@@ -6,6 +6,9 @@
 #include <vector>
 // #include <optional> // Not available in MinGW 6.3.0
 
+// Forward-declare to avoid circular include
+class GCSClient;
+
 // Simple optional implementation
 template<typename T>
 class Optional {
@@ -40,9 +43,19 @@ class Vault {
 public:
     explicit Vault(const std::string& filePath);
 
+    // Attach a GCS client for cloud sync (optional)
+    void setGCSClient(GCSClient* gcs) { gcs_ = gcs; }
+
     // Call once after master-password verification
+    // With GCS attached: downloads vault.dat from cloud before decrypting
     bool load(const std::string& masterKey);
+    // With GCS attached: uploads encrypted vault.dat to cloud after saving
     bool save(const std::string& masterKey);
+
+    // Explicit cloud sync helpers
+    bool syncFromCloud(const std::string& masterKey);
+    bool syncToCloud();
+    bool isCloudEnabled() const;
 
     // CRUD
     int         addEntry(Entry e);                    // returns assigned id
@@ -65,6 +78,7 @@ private:
     std::vector<Entry>  entries_;
     int                 nextId_  = 1;
     bool                dirty_   = false;
+    GCSClient*          gcs_     = nullptr;  // non-owning ptr
 
     std::string serialize()                                        const;
     bool        deserialize(const std::string& plain);

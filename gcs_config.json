@@ -1,0 +1,18 @@
+{
+  "_comment": "Google Cloud Storage configuration for Healix Vault",
+  "_instructions": [
+    "1. Set 'enabled' to true to activate GCS sync",
+    "2. Set 'bucket_name' to your GCS bucket name (e.g. my-vault-backup)",
+    "3. Set 'object_name' to the file path in the bucket (default: vault.dat)",
+    "4. Set 'service_account_key' to the path of your downloaded Service Account JSON key file",
+    "   - Go to: https://console.cloud.google.com/iam-admin/serviceaccounts",
+    "   - Create a Service Account with the role 'Storage Object Admin'",
+    "   - Download the JSON key and place it next to this file",
+    "   - Set the path below (use forward slashes or double backslashes)"
+  ],
+
+  "enabled": false,
+  "bucket_name": "YOUR-BUCKET-NAME-HERE",
+  "object_name": "vault.dat",
+  "service_account_key": "service_account.json"
+}
