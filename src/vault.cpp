@@ -1,4 +1,5 @@
 #include "vault.h"
+#include "gcs_client.h"
 #include "crypto.h"
 #include <fstream>
 #include <sstream>
@@ -6,6 +7,7 @@
 #include <stdexcept>
 #include <chrono>
 #include <ctime>
+#include <iostream>
 
 // ─── Timestamp helper ────────────────────────────────────────────────────────
 static std::string nowTimestamp() {
@@ -45,6 +47,27 @@ static std::string unesc(const std::string& s) {
 Vault::Vault(const std::string& filePath) : filePath_(filePath) {}
 
 bool Vault::load(const std::string& masterKey) {
+    // ── Step 1: Pull encrypted blob from GCS (if enabled) ─────────────────
+    if (gcs_ && gcs_->config().enabled) {
+        std::cout << "[GCS] Downloading vault from cloud...\n";
+        GCSResult res = gcs_->download();
+        if (res.ok && !res.data.empty()) {
+            // Write the downloaded blob to the local file
+            std::ofstream fw(filePath_, std::ios::binary | std::ios::trunc);
+            if (fw.is_open()) {
+                fw.write(res.data.data(), res.data.size());
+                fw.close();
+                std::cout << "[GCS] ✓ Vault downloaded (" << res.data.size() << " bytes)\n";
+            }
+        } else if (res.error.find("404") != std::string::npos) {
+            std::cout << "[GCS] No vault found in cloud – starting fresh\n";
+        } else if (!res.ok) {
+            std::cerr << "[GCS] WARNING: Cloud download failed: " << res.error << "\n";
+            std::cerr << "[GCS] Using local vault.dat as fallback\n";
+        }
+    }
+
+    // ── Step 2: Decrypt local file (same as before) ────────────────────────
     std::ifstream f(filePath_);
     if(!f.is_open()) return true; // fresh vault is fine
 
@@ -61,13 +84,50 @@ bool Vault::load(const std::string& masterKey) {
 }
 
 bool Vault::save(const std::string& masterKey) {
+    // ── Step 1: Encrypt and write locally ─────────────────────────────────
     std::string plain = serialize();
     std::string encrypted = Crypto::aes256Encrypt(plain, masterKey);
     std::ofstream f(filePath_);
     if(!f.is_open()) return false;
     f << encrypted;
+    f.close();
     dirty_ = false;
+
+    // ── Step 2: Upload encrypted blob to GCS (if enabled) ─────────────────
+    if (gcs_ && gcs_->config().enabled) {
+        std::cout << "[GCS] Uploading vault to cloud...\n";
+        GCSResult res = gcs_->upload(encrypted);
+        if (res.ok) {
+            std::cout << "[GCS] ✓ Vault synced to Google Cloud Storage\n";
+        } else {
+            std::cerr << "[GCS] WARNING: Cloud upload failed: " << res.error << "\n";
+            std::cerr << "[GCS] Data is safe locally. Will retry on next save.\n";
+        }
+    }
     return true;
+}
+
+// ─── Explicit cloud sync helpers ──────────────────────────────────────────────
+
+bool Vault::syncFromCloud(const std::string& masterKey) {
+    if (!gcs_ || !gcs_->config().enabled) return false;
+    return load(masterKey);
+}
+
+bool Vault::syncToCloud() {
+    if (!gcs_ || !gcs_->config().enabled) return false;
+    // Re-upload current local file as-is
+    std::ifstream f(filePath_, std::ios::binary);
+    if (!f.is_open()) return false;
+    std::string data((std::istreambuf_iterator<char>(f)),
+                      std::istreambuf_iterator<char>());
+    if (data.empty()) return false;
+    GCSResult res = gcs_->upload(data);
+    return res.ok;
+}
+
+bool Vault::isCloudEnabled() const {
+    return gcs_ && gcs_->config().enabled;
 }
 
 // ─── CRUD ─────────────────────────────────────────────────────────────────────

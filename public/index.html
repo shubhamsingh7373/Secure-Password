@@ -84,7 +84,7 @@
 
                     <p id="auth-error" class="auth-error"></p>
                 </div>
-                <p class="auth-footer"><i class="fa-solid fa-lock"></i> Your data never leaves this device</p>
+                <p class="auth-footer"><i class="fa-solid fa-lock"></i> AES-256 encrypted &nbsp;·&nbsp; <i class="fa-solid fa-cloud"></i> GCS cloud backup</p>
             </div>
         </div>
 
@@ -151,9 +151,15 @@
                         <input type="text" id="search-input" placeholder="Search entries…" oninput="doFilter()">
                         <span class="search-kbd">Ctrl+F</span>
                     </div>
-                    <button class="btn-add" onclick="openAddModal()">
-                        <i class="fa-solid fa-plus"></i> New Entry
-                    </button>
+                    <div class="topbar-actions">
+                        <span id="cloud-status-badge" class="cloud-badge cloud-badge--off" title="Cloud sync status">☁ Cloud: Off</span>
+                        <button id="cloud-sync-btn" class="btn-cloud" onclick="manualCloudSync()" title="Manually push vault to Google Cloud Storage">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> Sync
+                        </button>
+                        <button class="btn-add" onclick="openAddModal()">
+                            <i class="fa-solid fa-plus"></i> New Entry
+                        </button>
+                    </div>
                 </header>
 
                 <div class="view-header">
@@ -338,9 +344,9 @@
                         <i class="fa-solid fa-file-export"></i>
                         <span>Export Vault (Encrypted)</span>
                     </li>
-                    <li onclick="showToast('Cloud Sync coming in future update.','info')">
+                    <li onclick="manualCloudSync()">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
-                        <span>Enable Cloud Sync</span>
+                        <span>Sync to Google Cloud Storage</span>
                     </li>
                     <li onclick="clearClipboard()">
                         <i class="fa-solid fa-clipboard-check"></i>

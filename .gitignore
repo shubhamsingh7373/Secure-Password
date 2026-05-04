@@ -5,3 +5,8 @@ vault_config.txt
 cert.pem
 key.pem
 .vscode/
+
+# Google Cloud credentials – NEVER commit these
+service_account.json
+*_service_account.json
+gcs_config.local.json

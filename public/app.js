@@ -144,6 +144,7 @@ function enterDashboard() {
   showScreen('dashboard');
   startLockTimer();
   loadEntries();
+  checkCloudStatus(); // ← GCS status check
 }
 
 function logout() {
@@ -155,6 +156,47 @@ function logout() {
   if (lp) lp.value = '';
   checkStatus();
 }
+
+// ── Cloud Sync (GCS) ───────────────────────────────────────────────────────
+async function checkCloudStatus() {
+  try {
+    const res = await api('/api/cloud/status');
+    if (!res || !res.ok) return;
+    const data = await res.json();
+    const badge = document.getElementById('cloud-status-badge');
+    if (badge) {
+      if (data.enabled) {
+        badge.textContent = `☁ GCS: ${data.bucket}`;
+        badge.className = 'cloud-badge cloud-badge--on';
+        badge.title = `Syncing to gs://${data.bucket}/${data.object}`;
+      } else {
+        badge.textContent = '☁ Cloud: Off';
+        badge.className = 'cloud-badge cloud-badge--off';
+        badge.title = 'Cloud sync disabled. Edit gcs_config.json to enable.';
+      }
+    }
+  } catch (_) { /* silently ignore */ }
+}
+
+async function manualCloudSync() {
+  const btn = document.getElementById('cloud-sync-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+  try {
+    const res = await api('/api/cloud/sync', { method: 'POST' });
+    if (res && res.ok) {
+      showToast('Vault synced to Google Cloud Storage!', 'success');
+    } else if (res && res.status === 503) {
+      showToast('GCS not configured. Edit gcs_config.json.', 'error');
+    } else {
+      showToast('Cloud sync failed. Check server logs.', 'error');
+    }
+  } catch (_) {
+    showToast('Network error during cloud sync.', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '☁ Sync'; }
+  }
+}
+
 
 function showAuthError(msg) {
   document.getElementById('auth-error').textContent = msg;
