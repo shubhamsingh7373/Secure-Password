@@ -1,0 +1,7 @@
+build/
+*.log
+vault.dat
+vault_config.txt
+cert.pem
+key.pem
+.vscode/

@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Healix Vault — Secure Password Manager</title>
+    <meta name="description" content="Military-grade AES-256 encrypted password vault. Secure, fast, and private.">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container"></div>
+
+    <!-- Ambient background orbs -->
+    <div class="bg-orbs" aria-hidden="true">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <div id="app">
+
+        <!-- ═══════════ AUTH SCREEN ═══════════ -->
+        <div id="auth-screen" class="screen active">
+            <div class="auth-container">
+                <div class="auth-card glass-panel">
+                    <div class="auth-logo">
+                        <div class="shield-icon">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <h1>Healix Vault</h1>
+                        <p class="auth-tagline">AES-256 · PBKDF2 · Zero-Knowledge</p>
+                    </div>
+
+                    <!-- Setup Form -->
+                    <div id="setup-form" class="auth-form hidden">
+                        <div class="form-intro">
+                            <span class="badge badge-new">First Run</span>
+                            <p>Create a master password to initialize your vault.</p>
+                        </div>
+                        <div class="input-group">
+                            <i class="fa-solid fa-key input-icon"></i>
+                            <input type="password" id="setup-pwd1" placeholder="Master Password (min 8 chars)"
+                                   autocomplete="new-password" oninput="onSetupPwdInput()">
+                            <button type="button" class="icon-btn" onclick="toggleVis('setup-pwd1',this)" title="Show/Hide">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="strength-bar-wrap">
+                            <div class="strength-bar"><div id="setup-str-fill" class="strength-fill"></div></div>
+                            <span id="setup-str-label" class="strength-label"></span>
+                        </div>
+                        <div class="input-group">
+                            <i class="fa-solid fa-check-double input-icon"></i>
+                            <input type="password" id="setup-pwd2" placeholder="Confirm Password"
+                                   autocomplete="new-password" onkeydown="if(event.key==='Enter') setupMaster()">
+                        </div>
+                        <button class="btn-primary btn-full" onclick="setupMaster()">
+                            <i class="fa-solid fa-vault"></i> Initialize Vault
+                        </button>
+                    </div>
+
+                    <!-- Login Form -->
+                    <div id="login-form" class="auth-form hidden">
+                        <div class="form-intro">
+                            <span class="badge badge-lock"><i class="fa-solid fa-lock"></i> Vault Locked</span>
+                            <p>Enter your master password to unlock.</p>
+                        </div>
+                        <div class="input-group">
+                            <i class="fa-solid fa-key input-icon"></i>
+                            <input type="password" id="login-pwd" placeholder="Master Password"
+                                   autocomplete="current-password" onkeydown="if(event.key==='Enter') login()">
+                            <button type="button" class="icon-btn" onclick="toggleVis('login-pwd',this)" title="Show/Hide">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <button class="btn-primary btn-full" onclick="login()">
+                            <i class="fa-solid fa-unlock-keyhole"></i> Unlock Vault
+                        </button>
+                    </div>
+
+                    <p id="auth-error" class="auth-error"></p>
+                </div>
+                <p class="auth-footer"><i class="fa-solid fa-lock"></i> Your data never leaves this device</p>
+            </div>
+        </div>
+
+        <!-- ═══════════ DASHBOARD SCREEN ═══════════ -->
+        <div id="dashboard-screen" class="screen hidden">
+
+            <!-- Sidebar -->
+            <aside class="sidebar glass-panel">
+                <div class="sidebar-logo">
+                    <div class="shield-icon-sm"><i class="fa-solid fa-shield-halved"></i></div>
+                    <span>Healix Vault</span>
+                </div>
+
+                <div class="vault-stats">
+                    <div class="stat-item">
+                        <span id="stat-total" class="stat-num">0</span>
+                        <span class="stat-lbl">Entries</span>
+                    </div>
+                    <div class="stat-sep"></div>
+                    <div class="stat-item">
+                        <span id="stat-cats" class="stat-num">0</span>
+                        <span class="stat-lbl">Categories</span>
+                    </div>
+                </div>
+
+                <nav class="sidebar-nav">
+                    <p class="nav-section">LIBRARY</p>
+                    <ul class="nav-list" id="nav-list">
+                        <li class="nav-item active" data-cat="all" onclick="filterByCategory('all',this)">
+                            <i class="fa-solid fa-layer-group"></i>
+                            <span>All Items</span>
+                            <span id="nav-all-badge" class="nav-badge">0</span>
+                        </li>
+                    </ul>
+                    <p class="nav-section" style="margin-top:16px">TOOLS</p>
+                    <ul class="nav-list">
+                        <li class="nav-item" onclick="openGeneratorModal()">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>Generator</span>
+                        </li>
+                        <li class="nav-item" onclick="openSettingsModal()">
+                            <i class="fa-solid fa-gear"></i>
+                            <span>Settings</span>
+                        </li>
+                    </ul>
+                </nav>
+
+                <div class="sidebar-footer">
+                    <div class="autolock-wrap" id="autolock-wrap">
+                        <i class="fa-regular fa-clock"></i>
+                        <span id="autolock-label">5:00</span>
+                    </div>
+                    <button class="btn-lock" onclick="logout()">
+                        <i class="fa-solid fa-right-from-bracket"></i> Lock Vault
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Main content area -->
+            <main class="main-content">
+                <header class="top-bar">
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="search-input" placeholder="Search entries…" oninput="doFilter()">
+                        <span class="search-kbd">Ctrl+F</span>
+                    </div>
+                    <button class="btn-add" onclick="openAddModal()">
+                        <i class="fa-solid fa-plus"></i> New Entry
+                    </button>
+                </header>
+
+                <div class="view-header">
+                    <div>
+                        <h2 id="view-title">All Items</h2>
+                        <span id="view-count" class="view-count">0 entries</span>
+                    </div>
+                </div>
+
+                <div class="entries-grid" id="entries-container"></div>
+
+                <div id="empty-state" class="empty-state hidden">
+                    <i class="fa-solid fa-vault"></i>
+                    <h3>Your vault is empty</h3>
+                    <p>Add your first credential to get started.</p>
+                    <button class="btn-primary" onclick="openAddModal()">
+                        <i class="fa-solid fa-plus"></i> Add First Entry
+                    </button>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- ═══════════ ADD / EDIT MODAL ═══════════ -->
+    <div id="entry-modal" class="modal-overlay hidden" onclick="handleOverlayClick(event,'entry-modal')">
+        <div class="modal-box glass-panel">
+            <div class="modal-header">
+                <h3 id="modal-title">Add Entry</h3>
+                <button class="modal-close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="entry-id">
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label>Website / Title <span class="req">*</span></label>
+                        <div class="input-group">
+                            <i class="fa-solid fa-globe input-icon"></i>
+                            <input type="text" id="entry-website" placeholder="Google, GitHub…">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <div class="input-group">
+                            <i class="fa-solid fa-tag input-icon"></i>
+                            <input type="text" id="entry-category" placeholder="Work, Social…" list="cat-datalist">
+                            <datalist id="cat-datalist"></datalist>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Username / Email <span class="req">*</span></label>
+                    <div class="input-group">
+                        <i class="fa-solid fa-user input-icon"></i>
+                        <input type="text" id="entry-username" placeholder="user@example.com">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Password <span class="req">*</span></label>
+                    <div class="input-group">
+                        <i class="fa-solid fa-lock input-icon"></i>
+                        <input type="password" id="entry-password"
+                               oninput="updateStrength(this.value,'modal-str-fill','modal-str-label')">
+                        <button type="button" class="icon-btn" onclick="toggleVis('entry-password',this)" title="Show/Hide">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                        <button type="button" class="icon-btn" onclick="quickGenerate()" title="Generate Password">
+                            <i class="fa-solid fa-rotate"></i>
+                        </button>
+                    </div>
+                    <div class="strength-bar-wrap">
+                        <div class="strength-bar"><div id="modal-str-fill" class="strength-fill"></div></div>
+                        <span id="modal-str-label" class="strength-label"></span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Notes</label>
+                    <div class="input-group">
+                        <i class="fa-solid fa-note-sticky input-icon" style="align-self:flex-start;padding-top:13px"></i>
+                        <textarea id="entry-notes" rows="3" placeholder="Optional notes…"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn-primary" onclick="saveEntry()">
+                    <i class="fa-solid fa-floppy-disk"></i> Save Entry
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ GENERATOR MODAL ═══════════ -->
+    <div id="generator-modal" class="modal-overlay hidden" onclick="handleOverlayClick(event,'generator-modal')">
+        <div class="modal-box glass-panel">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Password Generator</h3>
+                <button class="modal-close" onclick="closeGeneratorModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="gen-output-row">
+                    <div class="gen-output" id="gen-output">—</div>
+                    <button class="icon-btn" onclick="copyGenPassword()" title="Copy"><i class="fa-solid fa-copy"></i></button>
+                    <button class="icon-btn" onclick="generatePassword()" title="Regenerate"><i class="fa-solid fa-arrows-rotate"></i></button>
+                </div>
+                <div class="strength-bar-wrap" style="margin-bottom:20px">
+                    <div class="strength-bar"><div id="gen-str-fill" class="strength-fill"></div></div>
+                    <span id="gen-str-label" class="strength-label"></span>
+                </div>
+
+                <div class="form-group">
+                    <label>Length: <strong id="len-display">16</strong> characters</label>
+                    <input type="range" id="gen-length" min="8" max="64" value="16" class="range-slider"
+                           oninput="document.getElementById('len-display').textContent=this.value; generatePassword()">
+                </div>
+
+                <div class="gen-options">
+                    <label class="opt-toggle">
+                        <input type="checkbox" id="opt-upper" checked onchange="generatePassword()">
+                        <span class="opt-track"></span>
+                        <span class="opt-label">Uppercase (A–Z)</span>
+                    </label>
+                    <label class="opt-toggle">
+                        <input type="checkbox" id="opt-lower" checked onchange="generatePassword()">
+                        <span class="opt-track"></span>
+                        <span class="opt-label">Lowercase (a–z)</span>
+                    </label>
+                    <label class="opt-toggle">
+                        <input type="checkbox" id="opt-numbers" checked onchange="generatePassword()">
+                        <span class="opt-track"></span>
+                        <span class="opt-label">Numbers (0–9)</span>
+                    </label>
+                    <label class="opt-toggle">
+                        <input type="checkbox" id="opt-symbols" onchange="generatePassword()">
+                        <span class="opt-track"></span>
+                        <span class="opt-label">Symbols (!@#$…)</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeGeneratorModal()">Close</button>
+                <button class="btn-primary" onclick="useGeneratedPassword()">
+                    <i class="fa-solid fa-arrow-right-to-bracket"></i> Use This Password
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ DELETE CONFIRM MODAL ═══════════ -->
+    <div id="delete-modal" class="modal-overlay hidden" onclick="handleOverlayClick(event,'delete-modal')">
+        <div class="modal-box modal-sm glass-panel">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b"></i> Confirm Delete</h3>
+                <button class="modal-close" onclick="closeDeleteModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p>Permanently delete <strong id="delete-entry-name" style="color:#f1f5f9"></strong>?</p>
+                <p class="text-muted" style="margin-top:8px;font-size:13px">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+                <button class="btn-danger" id="confirm-delete-btn" onclick="confirmDelete()">
+                    <i class="fa-solid fa-trash"></i> Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ SETTINGS MODAL ═══════════ -->
+    <div id="settings-modal" class="modal-overlay hidden" onclick="handleOverlayClick(event,'settings-modal')">
+        <div class="modal-box modal-sm glass-panel">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-gear"></i> Settings</h3>
+                <button class="modal-close" onclick="closeSettingsModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding:0">
+                <ul class="settings-menu-list">
+                    <li onclick="showToast('Export feature coming soon!','info')">
+                        <i class="fa-solid fa-file-export"></i>
+                        <span>Export Vault (Encrypted)</span>
+                    </li>
+                    <li onclick="showToast('Cloud Sync coming in future update.','info')">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span>Enable Cloud Sync</span>
+                    </li>
+                    <li onclick="clearClipboard()">
+                        <i class="fa-solid fa-clipboard-check"></i>
+                        <span>Clear Clipboard</span>
+                    </li>
+                    <li class="danger-zone" onclick="showToast('Requires backend support.','error')">
+                        <i class="fa-solid fa-key"></i>
+                        <span>Change Master Password</span>
+                    </li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeSettingsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
